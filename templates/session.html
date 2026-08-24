@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ s.starts_at|when }}</h1>
+<p class="muted">{{ s.group.name }} — {{ s.playing|length }} of {{ s.needed }} confirmed,
+  {{ s.pending|length }} pending{% if s.open_spots %}, {{ s.open_spots }} open{% endif %}</p>
+
+<form method="post" action="{{ url_for('session_action', session_id=s.id) }}" class="actions">
+  <button name="action" value="confirmations">Send confirmations</button>
+  <button name="action" value="remind" class="ghost">Remind pending</button>
+  <button name="action" value="subs" class="ghost">Request subs</button>
+  <button name="action" value="lineup" class="ghost">Send lineup</button>
+</form>
+
+<h2>Scheduled</h2>
+<table>
+  <thead><tr><th>Player</th><th>Role</th><th>Status</th><th>Answered</th></tr></thead>
+  <tbody>
+  {% for i in s.invites %}
+    <tr><td>{{ i.player.name }}</td>
+        <td>{{ 'sub' if i.kind == 'FILL' else 'roster' }}{% if i.wave %} · wave {{ i.wave }}{% endif %}</td>
+        <td><span class="status {{ i.status|lower }}">{{ i.status|lower }}</span></td>
+        <td class="muted">{{ i.responded_at|when }}</td></tr>
+  {% endfor %}
+  {% for r in s.scheduled if r.player_id not in s.invites|map(attribute='player_id')|list %}
+    <tr><td>{{ r.player.name }}</td><td>roster</td>
+        <td><span class="status idle">not asked yet</span></td><td class="muted">—</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Next in line</h2>
+<p class="muted">Who gets asked first if a spot opens: least-played players lead.</p>
+<ol class="pool">{% for p in candidates[:8] %}<li>{{ p.name }}</li>{% endfor %}</ol>
+{% endblock %}

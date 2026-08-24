@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Players</h1>
+<table>
+  <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Active</th><th></th></tr></thead>
+  <tbody>
+  {% for p in players %}
+  <tr>
+    <form method="post">
+      <input type="hidden" name="player_id" value="{{ p.id }}">
+      <td>{{ p.name }}</td>
+      <td><input name="email" value="{{ p.email }}" placeholder="required" class="{{ '' if p.email else 'missing' }}"></td>
+      <td><input name="phone" value="{{ p.phone }}"></td>
+      <td><input type="checkbox" name="active" {% if p.active %}checked{% endif %}></td>
+      <td><button class="ghost">Save</button></td>
+    </form>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

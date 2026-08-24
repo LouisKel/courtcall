@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+{% if dry_run %}<div class="flash warn">Dry-run mode is on: no email leaves the app. Set DRY_RUN to false to send for real.</div>{% endif %}
+<div class="row-between">
+  <h1>Upcoming sessions</h1>
+  <form method="post" action="{{ url_for('run_cycle') }}"><button class="ghost">Run cycle now</button></form>
+</div>
+{% if not sessions %}
+  <p class="muted">No upcoming sessions. Import a season grid to get started.</p>
+{% else %}
+<table>
+  <thead><tr><th>Session</th><th>Group</th><th>Confirmed</th><th>Pending</th><th>Open</th><th></th></tr></thead>
+  <tbody>
+  {% for s in sessions %}
+    <tr class="{% if s.open_spots %}short{% endif %}">
+      <td>{{ s.starts_at|when }}</td>
+      <td>{{ s.group.name }}</td>
+      <td><strong>{{ s.playing|length }}</strong> / {{ s.needed }}</td>
+      <td>{{ s.pending|length }}</td>
+      <td>{% if s.open_spots %}<span class="pill">{{ s.open_spots }}</span>{% else %}—{% endif %}</td>
+      <td><a href="{{ url_for('session_detail', session_id=s.id) }}">Open</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

@@ -1,6 +1,12 @@
-run = "cowsay Configure me!"
-entrypoint = "README.md"
+run = "gunicorn --bind 0.0.0.0:5000 --workers 1 --timeout 120 app:app"
+modules = ["python-3.11"]
+
+[deployment]
+run = ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "120", "app:app"]
+deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
 
 [nix]
-channel = "stable-24_05"
-packages = ["cowsay"]

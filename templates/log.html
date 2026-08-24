@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Message log</h1>
+<table>
+  <thead><tr><th>When</th><th>Channel</th><th>Recipient</th><th>Subject</th><th>Status</th></tr></thead>
+  <tbody>
+  {% for m in messages %}
+    <tr><td class="muted">{{ m.created_at|when }}</td><td>{{ m.channel }}</td>
+        <td>{{ m.recipient }}</td><td>{{ m.subject }}</td>
+        <td><span class="status {{ m.status }}">{{ m.status }}</span></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

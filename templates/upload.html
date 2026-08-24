@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Upload</h1>
+<div class="cards">
+  <form method="post" enctype="multipart/form-data" class="card">
+    <h2>Players</h2>
+    <p class="muted">CSV : <code>name, email, phone</code>. Updates existing players in place.</p>
+    <input type="hidden" name="kind" value="players">
+    <input type="file" name="file" accept=".csv" required>
+    <button>Import players</button>
+  </form>
+
+  <form method="post" enctype="multipart/form-data" class="card">
+    <h2>Season grid</h2>
+    <p class="muted">The club's current format: dates in row 1, players in column A, <code>1</code> when they play.</p>
+    <input type="hidden" name="kind" value="schedule">
+    <label>Group
+      <select name="group_id">{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select>
+    </label>
+    <label>Year <input type="number" name="year" value="{{ year }}"></label>
+    <input type="file" name="file" accept=".csv" required>
+    <button>Import schedule</button>
+  </form>
+</div>
+{% endblock %}

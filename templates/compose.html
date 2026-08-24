@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Message the group</h1>
+<form method="post" class="card">
+  <label>Group
+    <select name="group_id">{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select>
+  </label>
+  <label>Subject <input name="subject" required></label>
+  <label>Message <textarea name="body" rows="8" required></textarea></label>
+  <button>Send</button>
+</form>
+{% endblock %}
