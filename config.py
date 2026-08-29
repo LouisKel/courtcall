@@ -21,6 +21,7 @@ class Config:
 
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "sqlite:///courtcall.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True, "pool_recycle": 280}
 
     # Windows, in hours before the session starts
     CONFIRM_HOURS_BEFORE = _int("CONFIRM_HOURS_BEFORE", 48)
