@@ -9,7 +9,7 @@ from sqlalchemy import func
 import messaging
 from models import (CLAIMED, CLOSED, CONFIRMED, DECLINED, EXPIRED, FILL, OFFERED,
                     PENDING, PLAYING, SLOT, Group, Invite, Message, Player, Roster,
-                    Session, db)
+                    Session, db, local_now)
 
 # Replit runs a single process, so an in-memory lock is enough to serialise
 # the hourly cycle against player clicks.
@@ -22,7 +22,7 @@ def _hours(name):
 
 def run_cycle(now=None):
     """Entry point for the hourly trigger."""
-    now = now or datetime.utcnow()
+    now = now or local_now()
     touched = 0
     with LOCK:
         horizon = now + _hours("CONFIRM_HOURS_BEFORE")
@@ -43,7 +43,7 @@ def run_cycle(now=None):
 # ---------- 1. confirmations ----------
 
 def open_confirmations(session, now=None):
-    now = now or datetime.utcnow()
+    now = now or local_now()
     asked = {i.player_id for i in session.invites}
     for row in session.scheduled:
         if row.player_id in asked:
@@ -73,7 +73,7 @@ def _create(session, player, kind, wave, status, now):
 # ---------- 2. reminders and expiry ----------
 
 def chase(session, now=None):
-    now = now or datetime.utcnow()
+    now = now or local_now()
     cutoff = session.starts_at - _hours("CUTOFF_HOURS")
     for invite in session.invites:
         if invite.status == PENDING:
@@ -90,13 +90,19 @@ def chase(session, now=None):
 
 def _close(invite, status, now=None):
     invite.status = status
-    invite.responded_at = now or datetime.utcnow()
+    invite.responded_at = now or local_now()
 
 
 # ---------- 3. filling open spots ----------
 
 def fill_spots(session, now=None):
-    now = now or datetime.utcnow()
+    """Keep a bounded number of substitute invitations open at a time.
+
+    The batch size is gap + INVITE_EXTRA. With INVITE_EXTRA at 0 the club is
+    asked strictly one player at a time: when someone declines, or lets an
+    invitation go stale, the next name on the fairness list is asked.
+    """
+    now = now or local_now()
     if now >= session.starts_at - _hours("CUTOFF_HOURS"):
         alert_if_short(session, now)
         return 0
@@ -106,27 +112,25 @@ def fill_spots(session, now=None):
             close_offers(session)
         return 0
 
-    fills = [i for i in session.invites if i.kind == FILL]
-    max_wave = max((i.wave for i in fills), default=0)
+    for invite in session.invites:
+        if (invite.kind == FILL and invite.status == OFFERED
+                and now - invite.sent_at >= _hours("OFFER_HOURS")):
+            _close(invite, CLOSED, now)
 
-    if max_wave == 0:
-        return _invite_wave(session, 1, session.gap + current_app.config["WAVE1_EXTRA"], now)
-
-    if max_wave == 1:
-        first = min(i.sent_at for i in fills)
-        still_open = any(i.status == OFFERED for i in fills)
-        if not still_open or now - first >= _hours("WAVE1_HOURS"):
-            return _invite_wave(session, 2, None, now)
-    return 0
-
-
-def _invite_wave(session, wave, limit, now):
-    candidates = eligible(session)
-    if limit is not None:
-        candidates = candidates[:limit]
-    if not candidates:
-        alert_if_short(session, now)
+    outstanding = [i for i in session.invites
+                   if i.kind == FILL and i.status == OFFERED]
+    batch = session.gap + current_app.config["INVITE_EXTRA"]
+    room = batch - len(outstanding)
+    if room <= 0:
         return 0
+
+    wave = max((i.wave for i in session.invites if i.kind == FILL), default=0) + 1
+    candidates = eligible(session)[:room]
+    if not candidates:
+        if not outstanding:
+            alert_if_short(session, now)
+        return 0
+
     for player in candidates:
         _create(session, player, FILL, wave, OFFERED, now)
     return len(candidates)
@@ -172,7 +176,7 @@ def close_offers(session):
 # ---------- 4. lineup and alert ----------
 
 def day_of_lineup(session, now=None):
-    now = now or datetime.utcnow()
+    now = now or local_now()
     if session.lineup_sent_at or now < session.starts_at - _hours("LINEUP_HOURS_BEFORE"):
         return False
     if session.pending:
@@ -186,7 +190,7 @@ def day_of_lineup(session, now=None):
 
 
 def alert_if_short(session, now=None):
-    now = now or datetime.utcnow()
+    now = now or local_now()
     if session.alerted_at or len(session.playing) >= session.needed:
         return False
     if not session.group.organizer_email:
@@ -242,6 +246,7 @@ def _respond_fill(invite, session, answer, when):
 
     if answer == "no":
         _close(invite, DECLINED)
+        fill_spots(session)
         return "Noted", "We will offer it to someone else."
 
     if len(session.playing) >= session.needed:

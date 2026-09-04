@@ -1,7 +1,19 @@
 """Data model. A single table carries the state of every request."""
+import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from flask_sqlalchemy import SQLAlchemy
+
+
+def local_now():
+    """Wall-clock time in the club timezone, naive.
+
+    Session times come from the CSV as naive local times, so every comparison
+    must use the same clock. Using UTC shifted every send by the offset.
+    """
+    tz = os.environ.get("TIMEZONE", "America/Chicago")
+    return datetime.now(ZoneInfo(tz)).replace(tzinfo=None)
 
 db = SQLAlchemy()
 
@@ -120,7 +132,7 @@ class Invite(db.Model):
     wave = db.Column(db.Integer, default=0)
     status = db.Column(db.String(12), nullable=False)
     token = db.Column(db.String(48), unique=True, nullable=False, index=True)
-    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
+    sent_at = db.Column(db.DateTime, default=local_now)
     reminded_at = db.Column(db.DateTime)
     responded_at = db.Column(db.DateTime)
 
@@ -134,7 +146,7 @@ class Message(db.Model):
     """Delivery log. Doubles as the audit trail and the dry-run output."""
     __tablename__ = "messages"
     id = db.Column(db.Integer, primary_key=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=local_now, index=True)
     channel = db.Column(db.String(10), default="email")
     recipient = db.Column(db.String(200))
     subject = db.Column(db.String(240))

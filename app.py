@@ -11,7 +11,7 @@ import importer
 import messaging
 from config import Config
 from models import (CLAIMED, CONFIRMED, DECLINED, EXPIRED, Group, Invite, Message, Player,
-                    PLAYING, Session, db)
+                    PLAYING, Session, db, local_now)
 
 
 def create_app():
@@ -89,7 +89,7 @@ def _register_routes(app):
     @app.route("/")
     @login_required
     def dashboard():
-        now = datetime.utcnow()
+        now = local_now()
         sessions = (Session.query.join(Group).filter(Session.starts_at >= now)
                     .order_by(Session.starts_at).limit(20).all())
         return render_template("dashboard.html", sessions=sessions,
@@ -118,11 +118,11 @@ def _register_routes(app):
                 for invite in record.pending:
                     messaging.confirmation(record.group, record, invite.player, invite,
                                            reminder=True)
-                    invite.reminded_at = datetime.utcnow()
+                    invite.reminded_at = local_now()
                     sent += 1
                 flash(f"{sent} reminder(s) sent.", "ok")
             elif action == "subs":
-                count = engine._invite_wave(record, 2, None, datetime.utcnow())
+                count = engine.fill_spots(record)
                 flash(f"{count} substitute invitation(s) sent.", "ok")
             elif action == "lineup":
                 record.lineup_sent_at = None
@@ -151,7 +151,7 @@ def _register_routes(app):
                     flash(err, "error")
             else:
                 group = db.session.get(Group, int(request.form.get("group_id")))
-                year = int(request.form.get("year") or datetime.utcnow().year)
+                year = int(request.form.get("year") or local_now().year)
                 counts, warnings = importer.import_schedule(
                     uploaded, group, year, group.start_time)
                 flash(f"{counts['sessions']} session(s), "
@@ -159,7 +159,7 @@ def _register_routes(app):
                 for warning in warnings[:10]:
                     flash(warning, "error")
             return redirect(url_for("dashboard"))
-        return render_template("upload.html", groups=groups, year=datetime.utcnow().year)
+        return render_template("upload.html", groups=groups, year=local_now().year)
 
     # ---------- players, broadcast, log ----------
 

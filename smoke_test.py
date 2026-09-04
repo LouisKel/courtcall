@@ -32,7 +32,7 @@ with app.app_context():
     ok(len(group.roster) == 17, f"group roster: {len(group.roster)}")
 
     from datetime import datetime, timedelta
-    now = datetime.utcnow()
+    now = local_now()
     s = Session.query.filter(Session.starts_at > now).order_by(Session.starts_at).first()
     s.starts_at = now + timedelta(hours=47)
     db.session.commit()
@@ -57,8 +57,9 @@ with app.app_context():
        "no substitute invited who was already on the roster")
 
     engine.respond(s.invites[7].token, "no")
-    ok(len([i for i in s.invites if i.kind == FILL]) == 3,
-       "no wave 2 while wave 1 is still open")
+    outstanding = [i for i in s.invites if i.kind == FILL and i.status == "OFFERED"]
+    ok(len(outstanding) == s.gap + app.config["INVITE_EXTRA"],
+       f"outstanding invitations track the gap: {len(outstanding)}")
 
     engine.respond(fills[0].token, "yes")
     ok(len(s.playing) == 7, f"1 spot filled: {len(s.playing)}/8")
@@ -77,6 +78,25 @@ with app.app_context():
     db.session.commit()
     ok(engine.day_of_lineup(s), "lineup sent")
     ok(not engine.day_of_lineup(s), "lineup not sent twice")
+
+    # one-at-a-time mode: INVITE_EXTRA = 0 means a single open invitation
+    app.config["INVITE_EXTRA"] = 0
+    s2 = Session.query.filter(Session.id != s.id).order_by(Session.starts_at).first()
+    s2.starts_at = now + timedelta(hours=47)
+    db.session.commit()
+    engine.open_confirmations(s2)
+    db.session.commit()
+    for i in s2.invites[:7]:
+        engine.respond(i.token, "yes")
+    engine.respond(s2.invites[7].token, "no")
+    offers = [i for i in s2.invites if i.kind == FILL and i.status == "OFFERED"]
+    ok(len(offers) == 1, f"one-at-a-time: a single invitation is open ({len(offers)})")
+
+    first_sub = offers[0]
+    engine.respond(first_sub.token, "no")
+    offers = [i for i in s2.invites if i.kind == FILL and i.status == "OFFERED"]
+    ok(len(offers) == 1 and offers[0].id != first_sub.id,
+       "a decline moves the invitation to the next name, not to everyone")
 
     sent = Message.query.count()
     print(f"\n{sent} messages logged (dry run, nothing actually sent)")
